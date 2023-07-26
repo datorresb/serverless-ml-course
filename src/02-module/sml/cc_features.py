@@ -58,9 +58,9 @@ def haversine_distance(long: float, lat: float, prev_long: float, prev_lat: floa
     return c
 
 
-def time_delta(prev_datetime: int, current_datetime: int)-> int:
+def time_delta(current_datetime: int, prev_datetime: int)-> int:
     """Compute time difference between each consecutive transaction."""        
-    return prev_datetime - current_datetime
+    return current_datetime - prev_datetime
 
 def time_delta_to_days(time_delta: datetime)-> float:
     """."""    
@@ -83,15 +83,15 @@ def activity_level(trans_df : pd.DataFrame, lag: int)-> pd.DataFrame:
     # recent prior purchase. By grouping the DF by cc_num, apart from the first transaction (which will be NaN and we fill that with 0 at the end),
     # we can access the previous lat/long using Panda's `shift` operation, which gives you the previous row (long/lang).
     trans_df[f"loc_delta_t_minus_{lag}"] = trans_df.groupby("cc_num")\
-        .apply(lambda x :haversine_distance(x["longitude"], x["latitude"], x["longitude"].shift(-lag), x["latitude"].shift(-lag)))\
+        .apply(lambda x :haversine_distance(x["longitude"], x["latitude"], x["longitude"].shift(lag), x["latitude"].shift(lag)))\
         .reset_index(level=0, drop=True)\
         .fillna(0)
 
     # Use the same `shift` operation in Pandas to get the previous row for a given cc_number
     trans_df[f"time_delta_t_minus_{lag}"] = trans_df.groupby("cc_num")\
-        .apply(lambda x : time_delta(x["datetime"].shift(-lag), x["datetime"]))\
-        .reset_index(level=0, drop=True)
-#        .fillna(0) # handle the first datetime, which has no previous row when you call `shift`
+        .apply(lambda x : time_delta(x["datetime"], x["datetime"].shift(lag)))\
+        .reset_index(level=0, drop=True)\
+        #.fillna(0) # handle the first datetime, which has no previous row when you call `shift`
 
     # Convert time_delta from seconds to days
     trans_df[f"time_delta_t_minus_{lag}"] = trans_df[f"time_delta_t_minus_{lag}"].map(lambda x: time_delta_to_days(x))
@@ -116,7 +116,7 @@ def aggregate_activity_by_hour(trans_df : pd.DataFrame, window_len)-> pd.DataFra
     df_mavg = df_mavg.sort_index()
 
     # Moving standard deviation of transaction volume.
-    df_std = pd.DataFrame(cc_group.mean())
+    df_std = pd.DataFrame(cc_group.std())
     df_std.columns = ["trans_volume_mstd", "datetime"]
     df_std = df_std.reset_index(level=["cc_num"])
     df_std = df_std.drop(columns=["cc_num", "datetime"])
@@ -125,6 +125,7 @@ def aggregate_activity_by_hour(trans_df : pd.DataFrame, window_len)-> pd.DataFra
     window_aggs_df = df_std.merge(df_mavg,left_index=True, right_index=True)
 
     # Moving average of transaction frequency.
+    cc_group = trans_df[["cc_num", "time_delta_t_minus_1", "datetime"]].groupby("cc_num").rolling(window_len, on="datetime")
     df_count = pd.DataFrame(cc_group.mean())
     df_count.columns = ["trans_freq", "datetime"]
     df_count = df_count.reset_index(level=["cc_num"])

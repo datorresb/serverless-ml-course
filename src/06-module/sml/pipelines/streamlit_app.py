@@ -1,6 +1,6 @@
 import datetime
 from math import radians
-from sml import cc_features
+from sml.features import cc_features
 
 import pandas as pd
 import numpy as np
@@ -9,7 +9,7 @@ from matplotlib import pyplot
 import warnings
 
 import hopsworks
-from sml import synthetic_data
+from sml.features import synthetic_data
 
 import streamlit as st
 
@@ -114,7 +114,9 @@ progress_bar.progress(15)
 
 st.write(36 * "-")
 print_fancy_header('\n🤖 Connecting to Model Registry on Hopsworks...')
-deployment = get_deployment(project)
+ms = project.get_model_serving()
+deployment = ms.get_deployment(name="fraudonlinemodeldeployment")
+
 deployment.start()
 st.write("✅ Connected!")
 
